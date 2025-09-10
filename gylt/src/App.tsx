@@ -1,20 +1,13 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+// src/App.tsx
+import React from "react";
+import { StatusBar } from "react-native";
+import ModuleContainer from "./navigation/ModuleContainer";
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Test</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      <StatusBar />
+      <ModuleContainer />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
