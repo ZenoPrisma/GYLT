@@ -1,80 +1,313 @@
-// src/modules/notes/Notes.tsx
-import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Button, FlatList, Alert } from "react-native";
+import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
+import { View, Text, TextInput, FlatList, TouchableOpacity, Alert } from "react-native";
+import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin, setPinIfMissing } from "./Notes.auth";
 import { styles } from "./Notes.styles";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CreateNoteModal } from "./components/CreateNoteModal";
+import { BottomActionBar } from "./components/BottomActionBar";
+import { PinPromptModal } from "./components/PinPromptModal";
+import { NoteDetailModal } from "./components/NoteDetailModal";
+import { loadNotes, saveNotes } from "./Notes.storage";
+import type { Note, NotesState } from "./Notes.types";
+import * as Crypto from "expo-crypto";
 
-const STORAGE_KEY = "notes.v1";
+const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const fmtDate = (ms: number) => new Date(ms).toLocaleDateString();
 
 export function NotesScreen() {
-  const [text, setText] = useState("");
-  const [notes, setNotes] = useState<string[]>([]);
+  const [state, setState] = useState<NotesState>({ notes: [], pin: null });
   const [loaded, setLoaded] = useState(false);
+  const [search, setSearch] = useState("");
+  const [onlyFav, setOnlyFav] = useState(false);
+  const [sortAsc, setSortAsc] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
+  const openNote = state.notes.find(n => n.id === openNoteId) || null;
+  const [askPinForId, setAskPinForId] = useState<string | null>(null);
+  const [hasPin, setHasPin] = useState(false);
+  const [pinMode, setPinMode] = useState<"set" | "verify">("verify");
 
-  // Laden beim Start
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) setNotes(JSON.parse(raw));
-      } catch (e) {
-        console.warn("Load notes failed", e);
-      } finally {
-        setLoaded(true);
-      }
-    })();
+  useEffect(() => { (async () => setHasPin(await hasStoredPin()))(); }, []);
+  useEffect(() => { (async () => { setState(await loadNotes()); setLoaded(true); })(); }, []);
+  useEffect(() => { if (loaded) saveNotes(state); }, [state, loaded]);
+
+  const visibleNotes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = state.notes
+      .filter(n => (onlyFav ? n.favorite : true))
+      .filter(n => (q ? (n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)) : true));
+    filtered.sort((a, b) => (sortAsc ? a.createdAt - b.createdAt : b.createdAt - a.createdAt));
+    return filtered;
+  }, [state.notes, search, onlyFav, sortAsc]);
+
+  const isAnySelected = selected.size > 0;
+  const selectedNotes = useMemo(() => state.notes.filter(n => selected.has(n.id)), [state.notes, selected]);
+  const anyLocked = selectedNotes.some(n => n.locked);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }, []);
 
-  // Speichern bei Änderungen (nachdem initial geladen wurde)
-  useEffect(() => {
-    if (!loaded) return;
-    (async () => {
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-      } catch (e) {
-        console.warn("Save notes failed", e);
-      }
+  // ERSTELLEN (hash der Notiz-PIN)
+  const handleCreate = useCallback(async (title: string, body: string, favorite: boolean, locked: boolean, notePin?: string) => {
+    let passHash: string | undefined = undefined;
+    if (locked) {
+      const digits = (notePin ?? "").replace(/\D+/g, "");
+      if (digits.length < 4) return; // Guard: sollte nicht passieren, da Button disabled
+      passHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, digits);
+    }
+    const note: Note = { id: makeId(), title, body, createdAt: Date.now(), favorite, locked, passHash };
+    setState(s => ({ ...s, notes: [note, ...s.notes] }));
+  }, []);
+
+  // ÖFFNEN (Biometrie → Notiz-PIN → globale PIN [Altbestand])
+  const handlePressNote = useCallback(async (note: Note) => {
+    if (isAnySelected) { toggleSelect(note.id); return; }
+    if (!note.locked) { setOpenNoteId(note.id); return; }
+
+    if (await canUseBiometrics()) {
+      const ok = await authWithBiometrics("Mit Fingerabdruck entsperren");
+      if (ok) { setOpenNoteId(note.id); return; }
+    }
+
+    if (note.passHash) {
+      setPinMode("verify");        // Notiz-PIN
+      setAskPinForId(note.id);
+      return;
+    }
+
+    // Altbestand ohne passHash → globale PIN (falls vorhanden)
+    const exists = await hasStoredPin();
+    setPinMode(exists ? "verify" : "set");
+    setAskPinForId(note.id);
+  }, [isAnySelected, toggleSelect]);
+
+  const onToggleLockWithPin = useCallback(async (pin: string) => {
+    const digits = (pin ?? "").replace(/\D+/g, "");
+    const hash = digits.length >= 4
+      ? await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, digits)
+      : undefined;
+
+    // Optional: globalen PIN für Altbestand prüfen (nur 1x)
+    const globalOk = await (async () => {
+      // wenn du keinen globalen PIN mehr nutzt, return false;
+      try { return await verifyPin(digits); } catch { return false; }
     })();
-  }, [notes, loaded]);
 
-  const addNote = () => {
-    if (!text.trim()) return;
-    setNotes((n) => [text.trim(), ...n]);
-    setText("");
-  };
+    let unlocked = 0, failed = 0, lockedNew = 0;
 
-  const clearAll = async () => {
-    Alert.alert("Alle Notizen löschen?", "Das kann nicht rückgängig gemacht werden.", [
+    setState(s => {
+      const notes = s.notes.map(n => {
+        if (!selected.has(n.id)) return n;
+
+        // TOGGLE: wenn aktuell gesperrt -> entsperren; sonst sperren
+        if (n.locked) {
+          // Entsperren: nur bei passendem Notiz-PIN bzw. (Altbestand) globalem PIN
+          if (n.passHash) {
+            if (hash && hash === n.passHash) {
+              unlocked++;
+              return { ...n, locked: false, passHash: undefined }; // Sperre komplett entfernen
+            } else {
+              failed++;
+              return n; // falscher PIN, bleibt gesperrt
+            }
+          } else {
+            // Altbestand ohne passHash
+            if (globalOk) {
+              unlocked++;
+              return { ...n, locked: false, passHash: undefined };
+            } else {
+              failed++;
+              return n;
+            }
+          }
+        } else {
+          // Sperren: nur mit gültigem PIN möglich
+          if (hash) {
+            lockedNew++;
+            return { ...n, locked: true, passHash: n.passHash ?? hash };
+          } else {
+            // kein valider PIN -> ignorieren
+            failed++;
+            return n;
+          }
+        }
+      });
+      return { ...s, notes };
+    });
+
+    setSelected(new Set());
+
+    if (unlocked || lockedNew || failed) {
+      const parts = [];
+      if (unlocked) parts.push(`${unlocked} entsperrt`);
+      if (lockedNew) parts.push(`${lockedNew} gesperrt`);
+      if (failed) parts.push(`${failed} fehlgeschlagen`);
+      Alert.alert("Aktion", parts.join(", "));
+    }
+  }, [selected]);
+
+  const handleLongPressNote = useCallback((id: string) => toggleSelect(id), [toggleSelect]);
+
+  const applyToSelected = useCallback((fn: (n: Note) => Note | null) => {
+    setState(s => ({ ...s, notes: s.notes.flatMap(n => (selected.has(n.id) ? (fn(n) ? [fn(n)!] : []) : [n])) }));
+    setSelected(new Set());
+  }, [selected]);
+
+  const onDelete = useCallback(() => {
+    Alert.alert("Löschen", "Ausgewählte Notizen löschen?", [
       { text: "Abbrechen", style: "cancel" },
-      { text: "Löschen", style: "destructive", onPress: () => setNotes([]) },
+      { text: "Löschen", style: "destructive", onPress: () => applyToSelected(() => null) },
     ]);
-  };
+  }, [applyToSelected]);
+
+  const saveOpenNote = useCallback((title: string, body: string, favorite: boolean) => {
+    if (!openNote) return;
+    setState(s => ({
+      ...s,
+      notes: s.notes.map(n => (n.id === openNote.id ? { ...n, title, body, favorite } : n)),
+    }));
+    setOpenNoteId(null);
+  }, [openNote]);
+
+  const NoteCard = memo(({ item }: { item: Note }) => {
+    const isSel = selected.has(item.id);
+    return (
+      <TouchableOpacity
+        onLongPress={() => handleLongPressNote(item.id)}
+        onPress={() => handlePressNote(item)}
+        style={[styles.noteCard, isSel && styles.selected]}
+        activeOpacity={0.8}
+      >
+        <View>
+          <Text style={styles.noteTitle} numberOfLines={1}>
+            {item.locked ? "🔒 " : ""}
+            {item.title}
+          </Text>
+          <Text numberOfLines={3}>{item.locked ? "Geschützt" : item.body || " "}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={styles.noteMeta}>{fmtDate(item.createdAt)}</Text>
+          <Text style={styles.favBadge}>{item.favorite ? "★" : "☆"}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  });
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Notizen</Text>
-
-      <View style={styles.row}>
+      {/* Suche + Favoriten- und Sort-Filter */}
+      <View style={styles.headerRow}>
         <TextInput
-          style={styles.input}
-          placeholder="Neue Notiz…"
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={addNote}
-          returnKeyType="done"
+          style={styles.search}
+          placeholder="Suchen (Titel, Beschreibung)…"
+          value={search}
+          onChangeText={setSearch}
         />
-        <Button title="Add" onPress={addNote} />
+        <TouchableOpacity style={styles.filterBtn} onPress={() => setOnlyFav(f => !f)}>
+          <Text>{onlyFav ? "★ Favoriten" : "Alle"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.sortBtn} onPress={() => setSortAsc(v => !v)}>
+          <Text>{sortAsc ? "Datum ↑" : "Datum ↓"}</Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Auswahl-Zähler zwischen Suche und Grid */}
+      {isAnySelected && (
+        <View style={styles.selectionInline}>
+          <Text style={styles.selectionBannerText}>{selected.size} ausgewählt</Text>
+        </View>
+      )}
+
+      {/* Grid */}
       <FlatList
-        data={notes}
-        keyExtractor={(item, idx) => item + idx}
-        renderItem={({ item }) => <Text style={styles.noteItem}>• {item}</Text>}
-        contentContainerStyle={{ gap: 8, paddingBottom: 24 }}
-        ListEmptyComponent={<Text>Noch keine Notizen.</Text>}
+        data={visibleNotes}
+        keyExtractor={(n) => n.id}
+        renderItem={({ item }) => <NoteCard item={item} />}
+        numColumns={2}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        style={styles.grid}
+        ListEmptyComponent={<Text>Keine Notizen.</Text>}
+        removeClippedSubviews
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
       />
 
-      <Button title="Alle löschen" onPress={clearAll} />
+      {/* FAB */}
+      <TouchableOpacity style={styles.fab} onPress={() => setCreateOpen(true)} activeOpacity={0.8}>
+        <Text style={styles.fabText}>＋</Text>
+      </TouchableOpacity>
+
+      {/* Create + PIN + Detail */}
+      <CreateNoteModal
+        visible={createOpen}               
+        onClose={() => setCreateOpen(false)}
+        onCreate={handleCreate}
+      />
+
+      <PinPromptModal
+        visible={!!askPinForId}
+        mode={pinMode}
+        onCancel={() => setAskPinForId(null)}
+        onSubmit={async (enteredRaw) => {
+        const currentId = askPinForId;
+        if (!currentId) return; // Sicherheitsnetz
+
+        // nur Ziffern prüfen
+        const entered = enteredRaw.replace(/\D+/g, "");
+        if (entered.length < 4) return;
+
+        const note = state.notes.find(n => n.id === currentId);
+        if (!note) { setAskPinForId(null); return; }
+
+        if (note.passHash) {
+          const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, entered);
+          if (hash !== note.passHash) { Alert.alert("Falscher PIN", "Bitte erneut versuchen."); return; }
+          setOpenNoteId(note.id);
+          setAskPinForId(null);
+          return; // ← WICHTIG: kein Fallthrough
+        }
+
+        // Altbestand: globale PIN
+        if (pinMode === "set") {
+          // hier würdest du setPinIfMissing(entered) nutzen, falls du globalen PIN noch möchtest
+          // await setPinIfMissing(entered);
+          setOpenNoteId(note.id);
+          setAskPinForId(null);
+          return;
+        }
+
+        const ok = await verifyPin(entered);
+        if (!ok) { Alert.alert("Falscher PIN", "Bitte erneut versuchen."); return; }
+        setOpenNoteId(note.id);
+        setAskPinForId(null);
+      }}/>
+
+      {/* BottomActionBar verwenden */}
+      {isAnySelected && (
+        <BottomActionBar
+          selectedCount={selected.size}
+          anyLocked={selectedNotes.some(n => n.locked)}
+          hasPin={hasPin}
+          onDelete={onDelete}
+          onToggleLockWithPin={onToggleLockWithPin}
+        />
+      )}
+
+      <NoteDetailModal
+        visible={!!openNote}
+        initialTitle={openNote?.title ?? ""}
+        initialBody={openNote?.body ?? ""}
+        initialFavorite={openNote?.favorite ?? false}
+        onClose={() => setOpenNoteId(null)}
+        onSave={saveOpenNote}
+      />
     </View>
   );
 }

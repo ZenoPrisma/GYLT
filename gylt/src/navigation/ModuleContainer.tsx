@@ -1,14 +1,16 @@
 // src/navigation/ModuleContainer.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getEnabledModules } from "../modules/registry";
 import { Text } from "react-native";
 
-const Tab = createBottomTabNavigator();
+type TabParamList = Record<string, undefined>;
+const Tab = createBottomTabNavigator<TabParamList>();
 
 export default function ModuleContainer() {
-  const mods = getEnabledModules();
+  // modules nur einmal berechnen (falls getEnabledModules() stabil ist)
+  const mods = useMemo(() => getEnabledModules(), []);
 
   return (
     <NavigationContainer>
@@ -23,10 +25,11 @@ export default function ModuleContainer() {
             key={m.id}
             name={m.title}
             component={m.component}
-            options={{
-              // später: Icons via react-native-vector-icons oder @expo/vector-icons
+            options={(_props) => ({
+              // Tipp: später @expo/vector-icons nutzen (keine nackten Strings!)
               tabBarIcon: () => <Text>⬤</Text>,
-            }}
+              tabBarTestID: `tab-${m.id}`, // nützlich fürs Debug/Tests
+            })}
           />
         ))}
       </Tab.Navigator>
