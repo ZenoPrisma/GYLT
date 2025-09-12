@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
 import { View, FlatList, Alert } from "react-native";
-import { Searchbar, IconButton, Card, Text, FAB } from "react-native-paper";
+import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon } from "react-native-paper";
 import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin } from "./Notes.auth";
 import { styles } from "./Notes.styles";
 import { CreateNoteModal } from "./components/CreateNoteModal";
@@ -175,6 +175,8 @@ export function NotesScreen() {
     setOpenNoteId(null);
   }, [openNote]);
 
+  const theme = useTheme();
+
   const NoteCard = memo(({ item }: { item: Note }) => {
     const isSel = selected.has(item.id);
     return (
@@ -183,10 +185,33 @@ export function NotesScreen() {
         onPress={() => handlePressNote(item)}
         style={[styles.noteCard, isSel && styles.selected]}
       >
-        <Card.Title
-          title={item.locked ? `🔒 ${item.title}` : item.title}
-          right={() => <Text>{item.favorite ? "★" : "☆"}</Text>}
-        />
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            {item.locked && (
+              <View style={styles.cardIcon}>
+                <Icon
+                  source="lock"
+                  size={16}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </View>
+            )}
+            <Text
+              variant="titleMedium"
+              numberOfLines={1}
+              style={styles.cardTitle}
+            >
+              {item.title}
+            </Text>
+          </View>
+          <View style={styles.cardIcon}>
+            <Icon
+              source={item.favorite ? "star" : "star-outline"}
+              size={16}
+              color={item.favorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
+            />
+          </View>
+        </View>
         <Card.Content>
           <Text numberOfLines={3}>{item.locked ? "Geschützt" : item.body || " "}</Text>
         </Card.Content>
@@ -198,7 +223,7 @@ export function NotesScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Suche + Favoriten- und Sort-Filter */}
       <View style={styles.headerRow}>
         <Searchbar

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
-import { Portal, Modal, TextInput, Button, Appbar } from "react-native-paper";
+import { Portal, Modal, TextInput, Button, Appbar, Surface } from "react-native-paper";
 
 type Props = {
   visible: boolean;
@@ -22,18 +22,37 @@ export function NoteDetailModal({ visible, initialTitle, initialBody, initialFav
 
   return (
     <Portal>
-      <Modal visible={visible} onDismiss={onClose} contentContainerStyle={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: "white" }}>
+      <Modal visible={visible} onDismiss={onClose} contentContainerStyle={{ flex: 1, margin: 16 }}>
+        <Surface style={{ flex: 1, borderRadius: 20, overflow: "hidden" }} elevation={2}>
           <Appbar.Header>
             <Appbar.Content title="Notiz" />
-            <Appbar.Action icon={fav ? "star" : "star-outline"} onPress={() => setFav(v => !v)} accessibilityLabel="Favorisieren" />
+            <Appbar.Action
+              icon={fav ? "star" : "star-outline"}
+              onPress={() => setFav(v => !v)}
+              accessibilityLabel="Favorisieren"
+            />
           </Appbar.Header>
           <View style={{ flex: 1, padding: 16 }}>
-            <TextInput label="Titel" value={title} onChangeText={setTitle} style={{ marginBottom: 8 }} />
-            <TextInput label="Beschreibung" value={body} onChangeText={setBody} multiline style={{ flex: 1, marginBottom: 8 }} />
-            <Button mode="contained" onPress={() => onSave(title.trim(), body.trim(), fav)}>Speichern</Button>
+            <TextInput
+              mode="outlined"
+              label="Titel"
+              value={title}
+              onChangeText={setTitle}
+              style={{ marginBottom: 8 }}
+            />
+            <TextInput
+              mode="outlined"
+              label="Beschreibung"
+              value={body}
+              onChangeText={setBody}
+              multiline
+              style={{ flex: 1, marginBottom: 8 }}
+            />
+            <Button mode="contained" onPress={() => onSave(title.trim(), body.trim(), fav)}>
+              Speichern
+            </Button>
           </View>
-        </View>
+        </Surface>
       </Modal>
     </Portal>
   );

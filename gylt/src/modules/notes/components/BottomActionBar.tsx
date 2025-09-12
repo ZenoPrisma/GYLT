@@ -25,9 +25,12 @@ export function BottomActionBar({ anyLocked, hasPin, onDelete, onToggleLockWithP
 
       <Portal>
         <Dialog visible={pinModal} onDismiss={() => setPinModal(false)}>
-          <Dialog.Title>{hasPin ? "PIN eingeben" : "Neue PIN festlegen"}</Dialog.Title>
+          <Dialog.Title>
+            {anyLocked ? "PIN eingeben" : hasPin ? "PIN eingeben" : "Neue PIN festlegen"}
+          </Dialog.Title>
           <Dialog.Content>
             <TextInput
+              mode="outlined"
               label="PIN (min. 4 Ziffern)"
               value={pin}
               onChangeText={setPin}

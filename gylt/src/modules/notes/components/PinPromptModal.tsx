@@ -28,6 +28,7 @@ export function PinPromptModal({ visible, mode, title, onCancel, onSubmit, minLe
         <Dialog.Title>{title ?? (mode === "set" ? "PIN festlegen" : "PIN eingeben")}</Dialog.Title>
         <Dialog.Content>
           <TextInput
+            mode="outlined"
             label="Nur Ziffern (min. 4)"
             value={pin}
             onChangeText={onChange}
