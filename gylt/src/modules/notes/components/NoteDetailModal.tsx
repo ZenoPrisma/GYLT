@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Portal, Modal, TextInput, Button, Appbar, Surface } from "react-native-paper";
+import useBodyInput from "../useBodyInput";
 
 type Props = {
   visible: boolean;
@@ -13,12 +14,16 @@ type Props = {
 
 export function NoteDetailModal({ visible, initialTitle, initialBody, initialFavorite, onClose, onSave }: Props) {
   const [title, setTitle] = useState(initialTitle);
-  const [body, setBody] = useState(initialBody);
+  const { body, handleChangeText, reset } = useBodyInput(initialBody);
   const [fav, setFav] = useState(initialFavorite);
 
   useEffect(() => {
-    if (visible) { setTitle(initialTitle); setBody(initialBody); setFav(initialFavorite); }
-  }, [visible, initialTitle, initialBody, initialFavorite]);
+    if (visible) {
+      setTitle(initialTitle);
+      reset(initialBody);
+      setFav(initialFavorite);
+    }
+  }, [visible, initialTitle, initialBody, initialFavorite, reset]);
 
   return (
     <Portal>
@@ -44,7 +49,7 @@ export function NoteDetailModal({ visible, initialTitle, initialBody, initialFav
               mode="outlined"
               label="Beschreibung"
               value={body}
-              onChangeText={setBody}
+              onChangeText={handleChangeText}
               multiline
               style={{ flex: 1, marginBottom: 8 }}
             />

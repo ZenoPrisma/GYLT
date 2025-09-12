@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { View } from "react-native";
 import { Portal, Modal, TextInput, Button, IconButton, Text, Surface } from "react-native-paper";
 import { DEFAULT_NOTE_PIN } from "../Notes.constants";
+import useBodyInput from "../useBodyInput";
 
 type Props = {
   visible: boolean;
@@ -12,14 +13,20 @@ type Props = {
 
 export function CreateNoteModal({ visible, onClose, onCreate }: Props) {
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const { body, handleChangeText, reset } = useBodyInput();
   const [favorite, setFavorite] = useState(false);
   const [locked, setLocked] = useState(false);
   const [pin, setPin] = useState("");
 
   useEffect(() => {
-    if (!visible) { setTitle(""); setBody(""); setFavorite(false); setLocked(false); setPin(""); }
-  }, [visible]);
+    if (!visible) {
+      setTitle("");
+      reset();
+      setFavorite(false);
+      setLocked(false);
+      setPin("");
+    }
+  }, [visible, reset]);
 
   const onChangePin = (v: string) => setPin(v.replace(/\D+/g, ""));
   const canCreate = () => !(locked && pin.length < 4);
@@ -59,7 +66,7 @@ export function CreateNoteModal({ visible, onClose, onCreate }: Props) {
             mode="outlined"
             label="Beschreibung"
             value={body}
-            onChangeText={setBody}
+            onChangeText={handleChangeText}
             multiline
             style={{ marginBottom: 8, minHeight: 120 }}
           />
