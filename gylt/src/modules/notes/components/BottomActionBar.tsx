@@ -1,57 +1,54 @@
-// entfernt: Favorisieren-Button + Props allFavorite, onToggleFav
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Modal, TextInput, Button } from "react-native";
+import { View } from "react-native";
+import { Surface, IconButton, Portal, Dialog, TextInput, Button } from "react-native-paper";
 import { styles } from "../Notes.styles";
 
 type Props = {
-  selectedCount: number;
   anyLocked: boolean;
   hasPin: boolean;
   onDelete: () => void;
   onToggleLockWithPin: (pin: string) => void;
 };
 
-export function BottomActionBar({ selectedCount, anyLocked, hasPin, onDelete, onToggleLockWithPin }: Props) {
+export function BottomActionBar({ anyLocked, hasPin, onDelete, onToggleLockWithPin }: Props) {
   const [pinModal, setPinModal] = useState(false);
   const [pin, setPin] = useState("");
 
   return (
     <>
-      <View style={styles.actionBar}>
+      <Surface style={styles.actionBar} elevation={4}>
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionBtnSmall} onPress={() => setPinModal(true)}>
-            <Text style={styles.actionIcon}>{anyLocked ? "🔓" : "🔒"}</Text>
-            <Text style={styles.actionLabel}>{anyLocked ? "Entsichern" : "Sichern"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtnSmall} onPress={onDelete}>
-            <Text style={styles.actionIcon}>🗑️</Text>
-            <Text style={styles.actionLabel}>Löschen</Text>
-          </TouchableOpacity>
+          <IconButton icon={anyLocked ? "lock-open" : "lock"} onPress={() => setPinModal(true)} accessibilityLabel={anyLocked ? "Entsichern" : "Sichern"} />
+          <IconButton icon="delete" onPress={onDelete} accessibilityLabel="Löschen" />
         </View>
-      </View>
+      </Surface>
 
-      <Modal visible={pinModal} transparent animationType="fade" onRequestClose={() => setPinModal(false)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)", justifyContent: "center", alignItems: "center" }}>
-          <View style={{ backgroundColor: "#fff", padding: 16, width: "86%", borderRadius: 12, gap: 10 }}>
-            <Text style={{ fontWeight: "600" }}>{hasPin ? "PIN eingeben" : "Neue PIN festlegen"}</Text>
+      <Portal>
+        <Dialog visible={pinModal} onDismiss={() => setPinModal(false)}>
+          <Dialog.Title>{hasPin ? "PIN eingeben" : "Neue PIN festlegen"}</Dialog.Title>
+          <Dialog.Content>
             <TextInput
-              placeholder="PIN (min. 4 Ziffern)"
+              label="PIN (min. 4 Ziffern)"
               value={pin}
               onChangeText={setPin}
               keyboardType="number-pad"
               secureTextEntry
-              style={{ borderWidth: 1, borderColor: "#ddd", borderRadius: 10, padding: 10 }}
             />
-            <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
-              <Button title="OK" onPress={() => {
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              onPress={() => {
                 if (pin.trim().length < 4) return;
                 onToggleLockWithPin(pin.trim());
-                setPin(""); setPinModal(false);
-              }} />
-            </View>
-          </View>
-        </View>
-      </Modal>
+                setPin("");
+                setPinModal(false);
+              }}
+            >
+              OK
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </>
   );
 }
