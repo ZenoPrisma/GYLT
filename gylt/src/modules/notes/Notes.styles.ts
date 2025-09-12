@@ -6,7 +6,7 @@ export const styles = StyleSheet.create({
   search: { flex: 1 },
   grid: {},
   noteCard: { flex: 1, margin: 6, borderRadius: 12 },
-  selected: { borderWidth: 2, borderColor: "#1f75fe" },
+  selected: { borderWidth: 2, borderColor: "#D0BCFF" },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
