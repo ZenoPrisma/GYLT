@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, TouchableOpacity, Button } from "react-native";
+import { View } from "react-native";
+import { Portal, Modal, TextInput, Button, Appbar, Surface } from "react-native-paper";
 
 type Props = {
   visible: boolean;
@@ -20,43 +21,39 @@ export function NoteDetailModal({ visible, initialTitle, initialBody, initialFav
   }, [visible, initialTitle, initialBody, initialFavorite]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, padding: 12, gap: 10 }}>
-        {/* Kopfzeile bis ganz oben */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ fontSize: 18, fontWeight: "600" }}>Notizen</Text>
-          <TouchableOpacity onPress={() => setFav(v => !v)} accessibilityLabel="Favorisieren">
-            <Text style={{ fontSize: 22 }}>{fav ? "★" : "☆"}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TextInput
-          placeholder="Titel"
-          value={title}
-          onChangeText={setTitle}
-          style={{ borderWidth: 1, borderColor: "#ddd", borderRadius: 10, padding: 10 }}
-        />
-
-        {/* Body füllt den Rest vollständig; eigenes Scrollen via TextInput */}
-        <View style={{ flex: 1 }}>
-          <TextInput
-            placeholder="Beschreibung"
-            value={body}
-            onChangeText={setBody}
-            multiline
-            scrollEnabled
-            textAlignVertical="top"
-            style={{
-              flex: 1,                               // << füllt fast den kompletten Dialog
-              borderWidth: 1, borderColor: "#ddd", borderRadius: 10, padding: 10,
-            }}
-          />
-        </View>
-
-        <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-          <Button title="Speichern" onPress={() => onSave(title.trim(), body.trim(), fav)} />
-        </View>
-      </View>
-    </Modal>
+    <Portal>
+      <Modal visible={visible} onDismiss={onClose} contentContainerStyle={{ flex: 1, margin: 16 }}>
+        <Surface style={{ flex: 1, borderRadius: 20, overflow: "hidden" }} elevation={2}>
+          <Appbar.Header>
+            <Appbar.Content title="Notiz" />
+            <Appbar.Action
+              icon={fav ? "star" : "star-outline"}
+              onPress={() => setFav(v => !v)}
+              accessibilityLabel="Favorisieren"
+            />
+          </Appbar.Header>
+          <View style={{ flex: 1, padding: 16 }}>
+            <TextInput
+              mode="outlined"
+              label="Titel"
+              value={title}
+              onChangeText={setTitle}
+              style={{ marginBottom: 8 }}
+            />
+            <TextInput
+              mode="outlined"
+              label="Beschreibung"
+              value={body}
+              onChangeText={setBody}
+              multiline
+              style={{ flex: 1, marginBottom: 8 }}
+            />
+            <Button mode="contained" onPress={() => onSave(title.trim(), body.trim(), fav)}>
+              Speichern
+            </Button>
+          </View>
+        </Surface>
+      </Modal>
+    </Portal>
   );
 }

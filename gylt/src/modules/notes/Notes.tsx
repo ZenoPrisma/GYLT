@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
-import { View, Text, TextInput, FlatList, TouchableOpacity, Alert } from "react-native";
-import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin, setPinIfMissing } from "./Notes.auth";
+import { View, FlatList, Alert } from "react-native";
+import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon } from "react-native-paper";
+import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin } from "./Notes.auth";
 import { styles } from "./Notes.styles";
 import { CreateNoteModal } from "./components/CreateNoteModal";
 import { BottomActionBar } from "./components/BottomActionBar";
@@ -174,52 +175,79 @@ export function NotesScreen() {
     setOpenNoteId(null);
   }, [openNote]);
 
+  const theme = useTheme();
+
   const NoteCard = memo(({ item }: { item: Note }) => {
     const isSel = selected.has(item.id);
     return (
-      <TouchableOpacity
+      <Card
         onLongPress={() => handleLongPressNote(item.id)}
         onPress={() => handlePressNote(item)}
         style={[styles.noteCard, isSel && styles.selected]}
-        activeOpacity={0.8}
       >
-        <View>
-          <Text style={styles.noteTitle} numberOfLines={1}>
-            {item.locked ? "🔒 " : ""}
-            {item.title}
-          </Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            {item.locked && (
+              <View style={styles.cardIcon}>
+                <Icon
+                  source="lock"
+                  size={16}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </View>
+            )}
+            <Text
+              variant="titleMedium"
+              numberOfLines={1}
+              style={styles.cardTitle}
+            >
+              {item.title}
+            </Text>
+          </View>
+          <View style={styles.cardIcon}>
+            <Icon
+              source={item.favorite ? "star" : "star-outline"}
+              size={16}
+              color={item.favorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
+            />
+          </View>
+        </View>
+        <Card.Content>
           <Text numberOfLines={3}>{item.locked ? "Geschützt" : item.body || " "}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        </Card.Content>
+        <Card.Actions style={styles.cardActions}>
           <Text style={styles.noteMeta}>{fmtDate(item.createdAt)}</Text>
-          <Text style={styles.favBadge}>{item.favorite ? "★" : "☆"}</Text>
-        </View>
-      </TouchableOpacity>
+        </Card.Actions>
+      </Card>
     );
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Suche + Favoriten- und Sort-Filter */}
       <View style={styles.headerRow}>
-        <TextInput
+        <Searchbar
           style={styles.search}
           placeholder="Suchen (Titel, Beschreibung)…"
           value={search}
           onChangeText={setSearch}
         />
-        <TouchableOpacity style={styles.filterBtn} onPress={() => setOnlyFav(f => !f)}>
-          <Text>{onlyFav ? "★ Favoriten" : "Alle"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.sortBtn} onPress={() => setSortAsc(v => !v)}>
-          <Text>{sortAsc ? "Datum ↑" : "Datum ↓"}</Text>
-        </TouchableOpacity>
+        <IconButton
+          icon={onlyFav ? "star" : "star-outline"}
+          onPress={() => setOnlyFav(f => !f)}
+          accessibilityLabel="Favoriten filtern"
+        />
+        <IconButton
+          icon={sortAsc ? "sort-ascending" : "sort-descending"}
+          onPress={() => setSortAsc(v => !v)}
+          accessibilityLabel="Sortieren"
+        />
       </View>
 
       {/* Auswahl-Zähler zwischen Suche und Grid */}
       {isAnySelected && (
         <View style={styles.selectionInline}>
-          <Text style={styles.selectionBannerText}>{selected.size} ausgewählt</Text>
+          <Text>{selected.size} ausgewählt</Text>
         </View>
       )}
 
@@ -240,13 +268,11 @@ export function NotesScreen() {
       />
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => setCreateOpen(true)} activeOpacity={0.8}>
-        <Text style={styles.fabText}>＋</Text>
-      </TouchableOpacity>
+      <FAB style={styles.fab} icon="plus" onPress={() => setCreateOpen(true)} />
 
       {/* Create + PIN + Detail */}
       <CreateNoteModal
-        visible={createOpen}               
+        visible={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreate={handleCreate}
       />
@@ -292,7 +318,6 @@ export function NotesScreen() {
       {/* BottomActionBar verwenden */}
       {isAnySelected && (
         <BottomActionBar
-          selectedCount={selected.size}
           anyLocked={selectedNotes.some(n => n.locked)}
           hasPin={hasPin}
           onDelete={onDelete}

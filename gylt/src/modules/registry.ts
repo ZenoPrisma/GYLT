@@ -14,8 +14,20 @@ export type AppModule = {
 };
 
 export const MODULES: AppModule[] = [
-  { id: "weather", title: "Wetter", component: WeatherScreen, enabled: true },
-  { id: "notes",   title: "Notizen", component: NotesScreen,   enabled: true },
+  {
+    id: "weather",
+    title: "Wetter",
+    tabIcon: "weather-partly-cloudy",
+    component: WeatherScreen,
+    enabled: true,
+  },
+  {
+    id: "notes",
+    title: "Notizen",
+    tabIcon: "notebook",
+    component: NotesScreen,
+    enabled: true,
+  },
 ];
 
 // Praktischer Helper: Nur aktivierte Module liefern
