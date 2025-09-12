@@ -1,11 +1,19 @@
 import { useRef, useState } from "react";
 
+/**
+ * Handles note body input with lightweight formatting while avoiding feedback
+ * loops that caused duplicated or dropped characters when typing quickly.
+ */
 export function useBodyInput(initial: string = "") {
   const [body, setBody] = useState(initial);
   const prevRef = useRef(initial);
+  const skipRef = useRef(false);
 
   const handleChangeText = (text: string) => {
-    if (text === prevRef.current) return;
+    if (skipRef.current) {
+      skipRef.current = false;
+      return;
+    }
 
     let next = text;
 
@@ -28,12 +36,17 @@ export function useBodyInput(initial: string = "") {
       }
     }
 
+    if (next !== text) {
+      skipRef.current = true; // prevent re-processing when value is programmatically updated
+    }
+
     prevRef.current = next;
     setBody(next);
   };
 
   const reset = (text: string = "") => {
     prevRef.current = text;
+    skipRef.current = true;
     setBody(text);
   };
 
