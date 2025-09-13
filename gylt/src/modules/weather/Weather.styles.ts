@@ -10,4 +10,11 @@ export const styles = StyleSheet.create({
   suggestionsCard: { marginBottom: 8 },
   forecastList: { paddingVertical: 8 },
   dayCard: { width: 120, marginRight: 8 },
+  radarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  radar: { height: 300, marginTop: 8 },
 });

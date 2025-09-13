@@ -1,7 +1,15 @@
 // src/modules/weather/Weather.tsx
 import React, { useEffect, useState } from "react";
-import { ScrollView, FlatList } from "react-native";
-import { Card, Searchbar, Text, ActivityIndicator, List } from "react-native-paper";
+import { ScrollView, FlatList, View } from "react-native";
+import {
+  Card,
+  Searchbar,
+  Text,
+  ActivityIndicator,
+  List,
+  Switch,
+} from "react-native-paper";
+import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 import { styles } from "./Weather.styles";
 
@@ -25,6 +33,8 @@ export function WeatherScreen() {
   const [myWeather, setMyWeather] = useState<CurrentWeather | null>(null);
   const [searchWeather, setSearchWeather] = useState<{
     location: string;
+    latitude: number;
+    longitude: number;
     weather: CurrentWeather;
   } | null>(null);
   const [searchForecast, setSearchForecast] = useState<ForecastDay[]>([]);
@@ -38,6 +48,7 @@ export function WeatherScreen() {
       longitude: number;
     }[]
   >([]);
+  const [showRadar, setShowRadar] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -155,11 +166,14 @@ export function WeatherScreen() {
           location: [s.name, s.admin1, s.country]
             .filter(Boolean)
             .join(", "),
+          latitude: s.latitude,
+          longitude: s.longitude,
           weather: weather.current,
         });
         setSearchForecast(weather.forecast);
         setQuery("");
         setSuggestions([]);
+        setShowRadar(false);
       }
     } catch {
       /* ignore */
@@ -185,10 +199,13 @@ export function WeatherScreen() {
             location: [name, admin1, country]
               .filter(Boolean)
               .join(", "),
+            latitude,
+            longitude,
             weather: weather.current,
           });
           setSearchForecast(weather.forecast);
           setSuggestions([]);
+          setShowRadar(false);
         }
       }
     } catch {
@@ -283,6 +300,20 @@ export function WeatherScreen() {
             </Card>
           )}
           contentContainerStyle={styles.forecastList}
+        />
+      )}
+      {searchWeather && (
+        <View style={styles.radarRow}>
+          <Text>Regenradar</Text>
+          <Switch value={showRadar} onValueChange={setShowRadar} />
+        </View>
+      )}
+      {showRadar && searchWeather && (
+        <WebView
+          style={styles.radar}
+          source={{
+            uri: `https://www.rainviewer.com/map.html?loc=${searchWeather.latitude},${searchWeather.longitude},8`,
+          }}
         />
       )}
     </ScrollView>
