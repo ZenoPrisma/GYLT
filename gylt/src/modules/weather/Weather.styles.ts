@@ -2,6 +2,10 @@
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, gap: 8, justifyContent: "flex-start" },
-  title: { fontSize: 22, fontWeight: "600" },
+  container: { flex: 1, padding: 16, gap: 8 },
+  search: { marginBottom: 8 },
+  loading: { marginVertical: 8 },
+  currentCard: { marginBottom: 8 },
+  dayCard: { marginBottom: 8 },
+  radarContainer: { marginTop: 16, alignItems: "center" },
 });

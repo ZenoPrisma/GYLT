@@ -26,6 +26,9 @@ importers:
       expo-local-authentication:
         specifier: ^17.0.7
         version: 17.0.7(expo@54.0.6(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0))
+      expo-location:
+        specifier: ^19.0.7
+        version: 19.0.7(expo@54.0.6(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0))
       expo-secure-store:
         specifier: ^15.0.7
         version: 15.0.7(expo@54.0.6(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0))
@@ -1421,6 +1424,11 @@ packages:
 
   expo-local-authentication@17.0.7:
     resolution: {integrity: sha512-yRWcgYn/OIwxEDEk7cM7tRjQSHaTp5hpKwzq+g9NmSMJ1etzUzt0yGzkDiOjObj3YqFo0ucyDJ8WfanLhZDtMw==}
+    peerDependencies:
+      expo: '*'
+
+  expo-location@19.0.7:
+    resolution: {integrity: sha512-YNkh4r9E6ECbPkBCAMG5A5yHDgS0pw+Rzyd0l2ZQlCtjkhlODB55nMCKr5CZnUI0mXTkaSm8CwfoCO8n2MpYfg==}
     peerDependencies:
       expo: '*'
 
@@ -4519,6 +4527,10 @@ snapshots:
     dependencies:
       expo: 54.0.6(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
       invariant: 2.2.4
+
+  expo-location@19.0.7(expo@54.0.6(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)):
+    dependencies:
+      expo: 54.0.6(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
 
   expo-modules-autolinking@3.0.10:
     dependencies:
