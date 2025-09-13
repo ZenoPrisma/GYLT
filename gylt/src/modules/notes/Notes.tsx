@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
-import { View, FlatList, Alert } from "react-native";
-import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon } from "react-native-paper";
+import { View, FlatList, GestureResponderEvent } from "react-native";
+import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon, Portal, Dialog, Button } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin } from "./Notes.auth";
 import { styles } from "./Notes.styles";
 import { CreateNoteModal } from "./components/CreateNoteModal";
@@ -13,6 +14,7 @@ import * as Crypto from "expo-crypto";
 
 const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const fmtDate = (ms: number) => new Date(ms).toLocaleDateString();
+const ACTION_BAR_HEIGHT = 64;
 
 export function NotesScreen() {
   const [state, setState] = useState<NotesState>({ notes: [], pin: null });
@@ -20,6 +22,7 @@ export function NotesScreen() {
   const [search, setSearch] = useState("");
   const [onlyFav, setOnlyFav] = useState(false);
   const [sortAsc, setSortAsc] = useState(false);
+  const [gridMode, setGridMode] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
@@ -27,6 +30,7 @@ export function NotesScreen() {
   const [askPinForId, setAskPinForId] = useState<string | null>(null);
   const [hasPin, setHasPin] = useState(false);
   const [pinMode, setPinMode] = useState<"set" | "verify">("verify");
+  const [dialog, setDialog] = useState<{ title: string; message: string; onConfirm?: () => void } | null>(null);
 
   useEffect(() => { (async () => setHasPin(await hasStoredPin()))(); }, []);
   useEffect(() => { (async () => { setState(await loadNotes()); setLoaded(true); })(); }, []);
@@ -43,7 +47,6 @@ export function NotesScreen() {
 
   const isAnySelected = selected.size > 0;
   const selectedNotes = useMemo(() => state.notes.filter(n => selected.has(n.id)), [state.notes, selected]);
-  const anyLocked = selectedNotes.some(n => n.locked);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected(prev => {
@@ -51,6 +54,13 @@ export function NotesScreen() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }, []);
+
+  const toggleFavorite = useCallback((id: string) => {
+    setState(s => ({
+      ...s,
+      notes: s.notes.map(n => (n.id === id ? { ...n, favorite: !n.favorite } : n)),
+    }));
   }, []);
 
   // ERSTELLEN (hash der Notiz-PIN)
@@ -148,7 +158,7 @@ export function NotesScreen() {
       if (unlocked) parts.push(`${unlocked} entsperrt`);
       if (lockedNew) parts.push(`${lockedNew} gesperrt`);
       if (failed) parts.push(`${failed} fehlgeschlagen`);
-      Alert.alert("Aktion", parts.join(", "));
+      setDialog({ title: "Aktion", message: parts.join(", ") });
     }
   }, [selected]);
 
@@ -160,10 +170,11 @@ export function NotesScreen() {
   }, [selected]);
 
   const onDelete = useCallback(() => {
-    Alert.alert("Löschen", "Ausgewählte Notizen löschen?", [
-      { text: "Abbrechen", style: "cancel" },
-      { text: "Löschen", style: "destructive", onPress: () => applyToSelected(() => null) },
-    ]);
+    setDialog({
+      title: "Löschen",
+      message: "Ausgewählte Notizen löschen?",
+      onConfirm: () => applyToSelected(() => null),
+    });
   }, [applyToSelected]);
 
   const saveOpenNote = useCallback((title: string, body: string, favorite: boolean) => {
@@ -176,6 +187,7 @@ export function NotesScreen() {
   }, [openNote]);
 
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const NoteCard = memo(({ item }: { item: Note }) => {
     const isSel = selected.has(item.id);
@@ -204,13 +216,17 @@ export function NotesScreen() {
               {item.title}
             </Text>
           </View>
-          <View style={styles.cardIcon}>
-            <Icon
-              source={item.favorite ? "star" : "star-outline"}
-              size={16}
-              color={item.favorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
-            />
-          </View>
+          <IconButton
+            icon={item.favorite ? "star" : "star-outline"}
+            size={16}
+            iconColor={item.favorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
+            onPress={(e: GestureResponderEvent) => {
+              e.stopPropagation();
+              toggleFavorite(item.id);
+            }}
+            style={styles.cardIcon}
+            accessibilityLabel={item.favorite ? "Favorit entfernen" : "Als Favorit markieren"}
+          />
         </View>
         <Card.Content>
           <Text numberOfLines={3}>{item.locked ? "Geschützt" : item.body || " "}</Text>
@@ -242,6 +258,11 @@ export function NotesScreen() {
           onPress={() => setSortAsc(v => !v)}
           accessibilityLabel="Sortieren"
         />
+        <IconButton
+          icon={gridMode ? "view-agenda" : "view-grid"}
+          onPress={() => setGridMode(g => !g)}
+          accessibilityLabel="Darstellung umschalten"
+        />
       </View>
 
       {/* Auswahl-Zähler zwischen Suche und Grid */}
@@ -256,7 +277,8 @@ export function NotesScreen() {
         data={visibleNotes}
         keyExtractor={(n) => n.id}
         renderItem={({ item }) => <NoteCard item={item} />}
-        numColumns={2}
+        numColumns={gridMode ? 2 : 1}
+        key={gridMode ? "grid" : "list"}
         contentContainerStyle={{ paddingBottom: 120 }}
         style={styles.grid}
         ListEmptyComponent={<Text>Keine Notizen.</Text>}
@@ -268,7 +290,14 @@ export function NotesScreen() {
       />
 
       {/* FAB */}
-      <FAB style={styles.fab} icon="plus" onPress={() => setCreateOpen(true)} />
+      <FAB
+        style={[
+          styles.fab,
+          { bottom: insets.bottom + (isAnySelected ? ACTION_BAR_HEIGHT + 16 : 16) },
+        ]}
+        icon="plus"
+        onPress={() => setCreateOpen(true)}
+      />
 
       {/* Create + PIN + Detail */}
       <CreateNoteModal
@@ -294,7 +323,7 @@ export function NotesScreen() {
 
         if (note.passHash) {
           const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, entered);
-          if (hash !== note.passHash) { Alert.alert("Falscher PIN", "Bitte erneut versuchen."); return; }
+          if (hash !== note.passHash) { setDialog({ title: "Falscher PIN", message: "Bitte erneut versuchen." }); return; }
           setOpenNoteId(note.id);
           setAskPinForId(null);
           return; // ← WICHTIG: kein Fallthrough
@@ -310,7 +339,7 @@ export function NotesScreen() {
         }
 
         const ok = await verifyPin(entered);
-        if (!ok) { Alert.alert("Falscher PIN", "Bitte erneut versuchen."); return; }
+        if (!ok) { setDialog({ title: "Falscher PIN", message: "Bitte erneut versuchen." }); return; }
         setOpenNoteId(note.id);
         setAskPinForId(null);
       }}/>
@@ -323,6 +352,30 @@ export function NotesScreen() {
           onDelete={onDelete}
           onToggleLockWithPin={onToggleLockWithPin}
         />
+      )}
+
+      {dialog && (
+        <Portal>
+          <Dialog visible onDismiss={() => setDialog(null)}>
+            <Dialog.Title>{dialog.title}</Dialog.Title>
+            <Dialog.Content>
+              <Text>{dialog.message}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              {dialog.onConfirm && (
+                <Button onPress={() => setDialog(null)}>Abbrechen</Button>
+              )}
+              <Button
+                onPress={() => {
+                  dialog.onConfirm?.();
+                  setDialog(null);
+                }}
+              >
+                OK
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       )}
 
       <NoteDetailModal
