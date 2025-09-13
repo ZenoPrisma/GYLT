@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
 import { View, FlatList } from "react-native";
 import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon, Portal, Dialog, Button } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin } from "./Notes.auth";
 import { styles } from "./Notes.styles";
 import { CreateNoteModal } from "./components/CreateNoteModal";
@@ -13,6 +14,7 @@ import * as Crypto from "expo-crypto";
 
 const makeId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const fmtDate = (ms: number) => new Date(ms).toLocaleDateString();
+const ACTION_BAR_HEIGHT = 64;
 
 export function NotesScreen() {
   const [state, setState] = useState<NotesState>({ notes: [], pin: null });
@@ -177,6 +179,7 @@ export function NotesScreen() {
   }, [openNote]);
 
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const NoteCard = memo(({ item }: { item: Note }) => {
     const isSel = selected.has(item.id);
@@ -269,7 +272,14 @@ export function NotesScreen() {
       />
 
       {/* FAB */}
-      <FAB style={styles.fab} icon="plus" onPress={() => setCreateOpen(true)} />
+      <FAB
+        style={[
+          styles.fab,
+          { bottom: insets.bottom + (isAnySelected ? ACTION_BAR_HEIGHT + 16 : 16) },
+        ]}
+        icon="plus"
+        onPress={() => setCreateOpen(true)}
+      />
 
       {/* Create + PIN + Detail */}
       <CreateNoteModal
@@ -326,35 +336,29 @@ export function NotesScreen() {
         />
       )}
 
-      <Portal>
-        <Dialog visible={!!dialog} onDismiss={() => setDialog(null)}>
-          {dialog && (
-            <>
-              <Dialog.Title>{dialog.title}</Dialog.Title>
-              <Dialog.Content>
-                <Text>{dialog.message}</Text>
-              </Dialog.Content>
-              <Dialog.Actions>
-                {dialog.onConfirm ? (
-                  <>
-                    <Button onPress={() => setDialog(null)}>Abbrechen</Button>
-                    <Button
-                      onPress={() => {
-                        dialog.onConfirm?.();
-                        setDialog(null);
-                      }}
-                    >
-                      OK
-                    </Button>
-                  </>
-                ) : (
-                  <Button onPress={() => setDialog(null)}>OK</Button>
-                )}
-              </Dialog.Actions>
-            </>
-          )}
-        </Dialog>
-      </Portal>
+      {dialog && (
+        <Portal>
+          <Dialog visible onDismiss={() => setDialog(null)}>
+            <Dialog.Title>{dialog.title}</Dialog.Title>
+            <Dialog.Content>
+              <Text>{dialog.message}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              {dialog.onConfirm && (
+                <Button onPress={() => setDialog(null)}>Abbrechen</Button>
+              )}
+              <Button
+                onPress={() => {
+                  dialog.onConfirm?.();
+                  setDialog(null);
+                }}
+              >
+                OK
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      )}
 
       <NoteDetailModal
         visible={!!openNote}

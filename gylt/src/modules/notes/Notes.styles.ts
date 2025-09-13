@@ -18,7 +18,7 @@ export const styles = StyleSheet.create({
   cardIcon: { marginHorizontal: 4 },
   cardActions: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   noteMeta: { fontSize: 12, color: "#bbb" },
-  fab: { position: "absolute", right: 16, bottom: 80 },
+  fab: { position: "absolute", right: 16 },
   selectionInline: {
     alignSelf: "stretch",
     backgroundColor: "#3a3a3a",
