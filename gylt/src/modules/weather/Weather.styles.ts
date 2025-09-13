@@ -3,7 +3,6 @@ import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, gap: 8 },
-  locationText: { marginBottom: 8 },
   search: { marginBottom: 8 },
   loading: { marginVertical: 8 },
   currentCard: { marginBottom: 8 },
