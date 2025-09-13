@@ -6,6 +6,7 @@ export const styles = StyleSheet.create({
   search: { marginBottom: 8 },
   loading: { marginVertical: 8 },
   currentCard: { marginBottom: 8 },
+  suggestionsCard: { marginBottom: 8 },
   forecastList: { paddingVertical: 8 },
   dayCard: { width: 120, marginRight: 8 },
 });

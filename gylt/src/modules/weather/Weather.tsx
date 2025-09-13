@@ -1,11 +1,16 @@
 // src/modules/weather/Weather.tsx
 import React, { useEffect, useState } from "react";
 import { View, FlatList } from "react-native";
-import { Card, Searchbar, Text, ActivityIndicator } from "react-native-paper";
+import { Card, Searchbar, Text, ActivityIndicator, List } from "react-native-paper";
 import * as Location from "expo-location";
 import { styles } from "./Weather.styles";
 
-type ForecastDay = { date: string; tempMax: number; tempMin: number };
+type ForecastDay = {
+  date: string;
+  tempMax: number;
+  tempMin: number;
+  precipitationProb: number | null;
+};
 type CurrentWeather = {
   temperature: number;
   windspeed: number;
@@ -22,8 +27,12 @@ export function WeatherScreen() {
     location: string;
     weather: CurrentWeather;
   } | null>(null);
-  const [forecast, setForecast] = useState<ForecastDay[]>([]);
+  const [myForecast, setMyForecast] = useState<ForecastDay[]>([]);
+  const [searchForecast, setSearchForecast] = useState<ForecastDay[]>([]);
   const [myLocationName, setMyLocationName] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<
+    { name: string; country?: string; latitude: number; longitude: number }[]
+  >([]);
 
   useEffect(() => {
     (async () => {
@@ -40,10 +49,11 @@ export function WeatherScreen() {
         const weather = await fetchWeather(
           loc.coords.latitude,
           loc.coords.longitude,
-          1,
+          7,
         );
         if (weather) {
           setMyWeather(weather.current);
+          setMyForecast(weather.forecast);
         }
       } catch {
         /* ignore */
@@ -56,7 +66,8 @@ export function WeatherScreen() {
       const url =
         `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
         `&current_weather=true&hourly=precipitation_probability` +
-        `&daily=temperature_2m_max,temperature_2m_min&forecast_days=${days}&timezone=auto`;
+        `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+        `&forecast_days=${days}&timezone=auto`;
       const res = await fetch(url);
       const data = await res.json();
       const currentHour = data.current_weather.time.slice(0, 13) + ":00";
@@ -76,11 +87,69 @@ export function WeatherScreen() {
               date: t,
               tempMax: data.daily.temperature_2m_max[i],
               tempMin: data.daily.temperature_2m_min[i],
+              precipitationProb:
+                data.daily.precipitation_probability_max?.[i] ?? null,
             }))
           : [];
       return { current, forecast: daysArr };
     } catch {
       return null;
+    }
+  }
+
+  function rainEmoji(prob: number | null) {
+    if (prob == null) return "";
+    if (prob === 0) return "🟢";
+    if (prob < 50) return "🟡";
+    return "🔴";
+  }
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const geo = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=3`,
+        );
+        const gj = await geo.json();
+        if (!cancelled)
+          setSuggestions(gj.results?.slice(0, 3) || []);
+      } catch {
+        if (!cancelled) setSuggestions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  async function handleSuggestionSelect(s: {
+    name: string;
+    country?: string;
+    latitude: number;
+    longitude: number;
+  }) {
+    try {
+      setLoading(true);
+      const weather = await fetchWeather(s.latitude, s.longitude, 7);
+      if (weather) {
+        setSearchWeather({
+          location: [s.name, s.country].filter(Boolean).join(", "),
+          weather: weather.current,
+        });
+        setSearchForecast(weather.forecast);
+        setQuery("");
+        setSuggestions([]);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -101,7 +170,8 @@ export function WeatherScreen() {
             location: [name, country].filter(Boolean).join(", "),
             weather: weather.current,
           });
-          setForecast(weather.forecast);
+          setSearchForecast(weather.forecast);
+          setSuggestions([]);
         }
       }
     } catch {
@@ -115,7 +185,11 @@ export function WeatherScreen() {
     <View style={styles.container}>
       {myWeather ? (
         <Card style={styles.currentCard}>
-          <Card.Title title={`Aktuell: ${myLocationName ?? ""}`} />
+          <Card.Title
+            title={`Aktuell: ${myLocationName ?? ""} ${rainEmoji(
+              myWeather.precipitationProb,
+            )}`}
+          />
           <Card.Content>
             <Text>{`Temperatur: ${myWeather.temperature}°C`}</Text>
             <Text>{`Wind: ${myWeather.windspeed} km/h`}</Text>
@@ -128,6 +202,30 @@ export function WeatherScreen() {
       ) : (
         <ActivityIndicator style={styles.loading} />
       )}
+      {myForecast.length > 0 && (
+        <FlatList
+          data={myForecast}
+          keyExtractor={d => d.date}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <Card style={styles.dayCard}>
+              <Card.Title
+                title={
+                  new Date(item.date).toLocaleDateString(undefined, {
+                    month: "numeric",
+                    day: "numeric",
+                  }) + ` ${rainEmoji(item.precipitationProb)}`
+                }
+              />
+              <Card.Content>
+                <Text>{`Max: ${item.tempMax}°C  Min: ${item.tempMin}°C`}</Text>
+              </Card.Content>
+            </Card>
+          )}
+          contentContainerStyle={styles.forecastList}
+        />
+      )}
       <Searchbar
         placeholder="Ort suchen"
         value={query}
@@ -136,9 +234,24 @@ export function WeatherScreen() {
         style={styles.search}
       />
       {loading && <ActivityIndicator style={styles.loading} />}
+      {suggestions.length > 0 && (
+        <Card style={styles.suggestionsCard}>
+          {suggestions.map(s => (
+            <List.Item
+              key={`${s.latitude},${s.longitude}`}
+              title={[s.name, s.country].filter(Boolean).join(", ")}
+              onPress={() => handleSuggestionSelect(s)}
+            />
+          ))}
+        </Card>
+      )}
       {searchWeather && (
         <Card style={styles.currentCard}>
-          <Card.Title title={`Aktuell in ${searchWeather.location}`} />
+          <Card.Title
+            title={`Aktuell in ${searchWeather.location} ${rainEmoji(
+              searchWeather.weather.precipitationProb,
+            )}`}
+          />
           <Card.Content>
             <Text>{`Temperatur: ${searchWeather.weather.temperature}°C`}</Text>
             <Text>{`Wind: ${searchWeather.weather.windspeed} km/h`}</Text>
@@ -149,19 +262,21 @@ export function WeatherScreen() {
           </Card.Content>
         </Card>
       )}
-      {forecast.length > 0 && (
+      {searchForecast.length > 0 && (
         <FlatList
-          data={forecast}
+          data={searchForecast}
           keyExtractor={d => d.date}
           horizontal
           showsHorizontalScrollIndicator={false}
           renderItem={({ item }) => (
             <Card style={styles.dayCard}>
               <Card.Title
-                title={new Date(item.date).toLocaleDateString(undefined, {
-                  month: "numeric",
-                  day: "numeric",
-                })}
+                title={
+                  new Date(item.date).toLocaleDateString(undefined, {
+                    month: "numeric",
+                    day: "numeric",
+                  }) + ` ${rainEmoji(item.precipitationProb)}`
+                }
               />
               <Card.Content>
                 <Text>{`Max: ${item.tempMax}°C  Min: ${item.tempMin}°C`}</Text>
