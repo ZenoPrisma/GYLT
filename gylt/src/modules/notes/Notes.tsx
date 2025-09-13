@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
-import { View, FlatList } from "react-native";
+import { View, FlatList, GestureResponderEvent } from "react-native";
 import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon, Portal, Dialog, Button } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin } from "./Notes.auth";
@@ -22,6 +22,7 @@ export function NotesScreen() {
   const [search, setSearch] = useState("");
   const [onlyFav, setOnlyFav] = useState(false);
   const [sortAsc, setSortAsc] = useState(false);
+  const [gridMode, setGridMode] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
@@ -53,6 +54,13 @@ export function NotesScreen() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }, []);
+
+  const toggleFavorite = useCallback((id: string) => {
+    setState(s => ({
+      ...s,
+      notes: s.notes.map(n => (n.id === id ? { ...n, favorite: !n.favorite } : n)),
+    }));
   }, []);
 
   // ERSTELLEN (hash der Notiz-PIN)
@@ -208,13 +216,17 @@ export function NotesScreen() {
               {item.title}
             </Text>
           </View>
-          <View style={styles.cardIcon}>
-            <Icon
-              source={item.favorite ? "star" : "star-outline"}
-              size={16}
-              color={item.favorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
-            />
-          </View>
+          <IconButton
+            icon={item.favorite ? "star" : "star-outline"}
+            size={16}
+            iconColor={item.favorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
+            onPress={(e: GestureResponderEvent) => {
+              e.stopPropagation();
+              toggleFavorite(item.id);
+            }}
+            style={styles.cardIcon}
+            accessibilityLabel={item.favorite ? "Favorit entfernen" : "Als Favorit markieren"}
+          />
         </View>
         <Card.Content>
           <Text numberOfLines={3}>{item.locked ? "Geschützt" : item.body || " "}</Text>
@@ -246,6 +258,11 @@ export function NotesScreen() {
           onPress={() => setSortAsc(v => !v)}
           accessibilityLabel="Sortieren"
         />
+        <IconButton
+          icon={gridMode ? "view-agenda" : "view-grid"}
+          onPress={() => setGridMode(g => !g)}
+          accessibilityLabel="Darstellung umschalten"
+        />
       </View>
 
       {/* Auswahl-Zähler zwischen Suche und Grid */}
@@ -260,7 +277,8 @@ export function NotesScreen() {
         data={visibleNotes}
         keyExtractor={(n) => n.id}
         renderItem={({ item }) => <NoteCard item={item} />}
-        numColumns={2}
+        numColumns={gridMode ? 2 : 1}
+        key={gridMode ? "grid" : "list"}
         contentContainerStyle={{ paddingBottom: 120 }}
         style={styles.grid}
         ListEmptyComponent={<Text>Keine Notizen.</Text>}
