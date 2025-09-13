@@ -40,10 +40,10 @@ export function WeatherScreen() {
         const weather = await fetchWeather(
           loc.coords.latitude,
           loc.coords.longitude,
+          1,
         );
         if (weather) {
           setMyWeather(weather.current);
-          setForecast(weather.forecast);
         }
       } catch {
         /* ignore */
@@ -51,12 +51,16 @@ export function WeatherScreen() {
     })();
   }, []);
 
-  async function fetchWeather(lat: number, lon: number) {
+  async function fetchWeather(lat: number, lon: number, days = 7) {
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=precipitation_probability&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+      const url =
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+        `&current_weather=true&hourly=precipitation_probability` +
+        `&daily=temperature_2m_max,temperature_2m_min&forecast_days=${days}&timezone=auto`;
       const res = await fetch(url);
       const data = await res.json();
-      const idx = data.hourly.time.indexOf(data.current_weather.time);
+      const currentHour = data.current_weather.time.slice(0, 13) + ":00";
+      const idx = data.hourly.time.indexOf(currentHour);
       const precipitationProb =
         idx >= 0 ? data.hourly.precipitation_probability[idx] : null;
       const current: CurrentWeather = {
@@ -66,14 +70,15 @@ export function WeatherScreen() {
         tempMax: data.daily.temperature_2m_max[0],
         tempMin: data.daily.temperature_2m_min[0],
       };
-      const days: ForecastDay[] = (data.daily?.time || []).map(
-        (t: string, i: number) => ({
-          date: t,
-          tempMax: data.daily.temperature_2m_max[i],
-          tempMin: data.daily.temperature_2m_min[i],
-        }),
-      );
-      return { current, forecast: days };
+      const daysArr: ForecastDay[] =
+        days > 1
+          ? (data.daily?.time || []).map((t: string, i: number) => ({
+              date: t,
+              tempMax: data.daily.temperature_2m_max[i],
+              tempMin: data.daily.temperature_2m_min[i],
+            }))
+          : [];
+      return { current, forecast: daysArr };
     } catch {
       return null;
     }
@@ -90,12 +95,14 @@ export function WeatherScreen() {
       const gj = await geo.json();
       if (gj.results?.length) {
         const { latitude, longitude, name, country } = gj.results[0];
-        const weather = await fetchWeather(latitude, longitude);
-        if (weather)
+        const weather = await fetchWeather(latitude, longitude, 7);
+        if (weather) {
           setSearchWeather({
             location: [name, country].filter(Boolean).join(", "),
             weather: weather.current,
           });
+          setForecast(weather.forecast);
+        }
       }
     } catch {
       /* ignore */
@@ -115,6 +122,7 @@ export function WeatherScreen() {
             {myWeather.precipitationProb != null && (
               <Text>{`Regenwahrscheinlichkeit: ${myWeather.precipitationProb}%`}</Text>
             )}
+            <Text>{`Höchst: ${myWeather.tempMax}°C  Tiefst: ${myWeather.tempMin}°C`}</Text>
           </Card.Content>
         </Card>
       ) : (
@@ -141,26 +149,28 @@ export function WeatherScreen() {
           </Card.Content>
         </Card>
       )}
-      <FlatList
-        data={forecast}
-        keyExtractor={d => d.date}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Card style={styles.dayCard}>
-            <Card.Title
-              title={new Date(item.date).toLocaleDateString(undefined, {
-                month: "numeric",
-                day: "numeric",
-              })}
-            />
-            <Card.Content>
-              <Text>{`Max: ${item.tempMax}°C  Min: ${item.tempMin}°C`}</Text>
-            </Card.Content>
-          </Card>
-        )}
-        contentContainerStyle={styles.forecastList}
-      />
+      {forecast.length > 0 && (
+        <FlatList
+          data={forecast}
+          keyExtractor={d => d.date}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <Card style={styles.dayCard}>
+              <Card.Title
+                title={new Date(item.date).toLocaleDateString(undefined, {
+                  month: "numeric",
+                  day: "numeric",
+                })}
+              />
+              <Card.Content>
+                <Text>{`Max: ${item.tempMax}°C  Min: ${item.tempMin}°C`}</Text>
+              </Card.Content>
+            </Card>
+          )}
+          contentContainerStyle={styles.forecastList}
+        />
+      )}
     </View>
   );
 }
