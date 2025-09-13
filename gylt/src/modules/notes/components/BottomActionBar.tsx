@@ -30,12 +30,12 @@ export function BottomActionBar({ anyLocked, hasPin, onDelete, onToggleLockWithP
           </Dialog.Title>
           <Dialog.Content>
             <TextInput
-              mode="outlined"
-              label="PIN (min. 4 Ziffern)"
+              placeholder="PIN (min. 4 Ziffern)"
               value={pin}
               onChangeText={setPin}
               keyboardType="number-pad"
               secureTextEntry
+              style={{ borderWidth: 1, borderColor: "#D0BCFF", padding: 10 }}
             />
           </Dialog.Content>
           <Dialog.Actions>
