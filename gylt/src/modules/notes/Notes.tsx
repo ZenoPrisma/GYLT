@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from "react";
-import { View, FlatList, Alert } from "react-native";
-import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon } from "react-native-paper";
+import { View, FlatList } from "react-native";
+import { Searchbar, IconButton, Card, Text, FAB, useTheme, Icon, Portal, Dialog, Button } from "react-native-paper";
 import { canUseBiometrics, authWithBiometrics, hasStoredPin, verifyPin } from "./Notes.auth";
 import { styles } from "./Notes.styles";
 import { CreateNoteModal } from "./components/CreateNoteModal";
@@ -27,6 +27,7 @@ export function NotesScreen() {
   const [askPinForId, setAskPinForId] = useState<string | null>(null);
   const [hasPin, setHasPin] = useState(false);
   const [pinMode, setPinMode] = useState<"set" | "verify">("verify");
+  const [dialog, setDialog] = useState<{ title: string; message: string; onConfirm?: () => void } | null>(null);
 
   useEffect(() => { (async () => setHasPin(await hasStoredPin()))(); }, []);
   useEffect(() => { (async () => { setState(await loadNotes()); setLoaded(true); })(); }, []);
@@ -43,7 +44,6 @@ export function NotesScreen() {
 
   const isAnySelected = selected.size > 0;
   const selectedNotes = useMemo(() => state.notes.filter(n => selected.has(n.id)), [state.notes, selected]);
-  const anyLocked = selectedNotes.some(n => n.locked);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected(prev => {
@@ -148,7 +148,7 @@ export function NotesScreen() {
       if (unlocked) parts.push(`${unlocked} entsperrt`);
       if (lockedNew) parts.push(`${lockedNew} gesperrt`);
       if (failed) parts.push(`${failed} fehlgeschlagen`);
-      Alert.alert("Aktion", parts.join(", "));
+      setDialog({ title: "Aktion", message: parts.join(", ") });
     }
   }, [selected]);
 
@@ -160,10 +160,11 @@ export function NotesScreen() {
   }, [selected]);
 
   const onDelete = useCallback(() => {
-    Alert.alert("Löschen", "Ausgewählte Notizen löschen?", [
-      { text: "Abbrechen", style: "cancel" },
-      { text: "Löschen", style: "destructive", onPress: () => applyToSelected(() => null) },
-    ]);
+    setDialog({
+      title: "Löschen",
+      message: "Ausgewählte Notizen löschen?",
+      onConfirm: () => applyToSelected(() => null),
+    });
   }, [applyToSelected]);
 
   const saveOpenNote = useCallback((title: string, body: string, favorite: boolean) => {
@@ -294,7 +295,7 @@ export function NotesScreen() {
 
         if (note.passHash) {
           const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, entered);
-          if (hash !== note.passHash) { Alert.alert("Falscher PIN", "Bitte erneut versuchen."); return; }
+          if (hash !== note.passHash) { setDialog({ title: "Falscher PIN", message: "Bitte erneut versuchen." }); return; }
           setOpenNoteId(note.id);
           setAskPinForId(null);
           return; // ← WICHTIG: kein Fallthrough
@@ -310,7 +311,7 @@ export function NotesScreen() {
         }
 
         const ok = await verifyPin(entered);
-        if (!ok) { Alert.alert("Falscher PIN", "Bitte erneut versuchen."); return; }
+        if (!ok) { setDialog({ title: "Falscher PIN", message: "Bitte erneut versuchen." }); return; }
         setOpenNoteId(note.id);
         setAskPinForId(null);
       }}/>
@@ -324,6 +325,36 @@ export function NotesScreen() {
           onToggleLockWithPin={onToggleLockWithPin}
         />
       )}
+
+      <Portal>
+        <Dialog visible={!!dialog} onDismiss={() => setDialog(null)}>
+          {dialog && (
+            <>
+              <Dialog.Title>{dialog.title}</Dialog.Title>
+              <Dialog.Content>
+                <Text>{dialog.message}</Text>
+              </Dialog.Content>
+              <Dialog.Actions>
+                {dialog.onConfirm ? (
+                  <>
+                    <Button onPress={() => setDialog(null)}>Abbrechen</Button>
+                    <Button
+                      onPress={() => {
+                        dialog.onConfirm?.();
+                        setDialog(null);
+                      }}
+                    >
+                      OK
+                    </Button>
+                  </>
+                ) : (
+                  <Button onPress={() => setDialog(null)}>OK</Button>
+                )}
+              </Dialog.Actions>
+            </>
+          )}
+        </Dialog>
+      </Portal>
 
       <NoteDetailModal
         visible={!!openNote}
