@@ -12,6 +12,7 @@ export function WeatherScreen() {
   const [loading, setLoading] = useState(false);
   const [current, setCurrent] = useState<{ temperature: number; windspeed: number } | null>(null);
   const [forecast, setForecast] = useState<ForecastDay[]>([]);
+  const [myLocationName, setMyLocationName] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -19,6 +20,12 @@ export function WeatherScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") return;
         const loc = await Location.getCurrentPositionAsync({});
+        const [addr] = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        if (addr)
+          setMyLocationName([addr.city, addr.country].filter(Boolean).join(", "));
         await fetchWeather(loc.coords.latitude, loc.coords.longitude);
       } catch {
         /* ignore */
@@ -63,6 +70,9 @@ export function WeatherScreen() {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.locationText}>
+        {myLocationName ? `Aktueller Standort: ${myLocationName}` : "Aktueller Standort wird ermittelt..."}
+      </Text>
       <Searchbar
         placeholder="Ort suchen"
         value={query}
@@ -83,6 +93,8 @@ export function WeatherScreen() {
       <FlatList
         data={forecast}
         keyExtractor={d => d.date}
+        horizontal
+        showsHorizontalScrollIndicator={false}
         renderItem={({ item }) => (
           <Card style={styles.dayCard}>
             <Card.Title title={new Date(item.date).toLocaleDateString()} />
@@ -91,10 +103,8 @@ export function WeatherScreen() {
             </Card.Content>
           </Card>
         )}
+        contentContainerStyle={styles.forecastList}
       />
-      <View style={styles.radarContainer}>
-        <Text>Regenradar noch nicht implementiert</Text>
-      </View>
     </View>
   );
 }
