@@ -1,6 +1,6 @@
 // src/modules/weather/Weather.tsx
 import React, { useEffect, useState } from "react";
-import { View, FlatList } from "react-native";
+import { ScrollView, FlatList } from "react-native";
 import { Card, Searchbar, Text, ActivityIndicator, List } from "react-native-paper";
 import * as Location from "expo-location";
 import { styles } from "./Weather.styles";
@@ -27,11 +27,16 @@ export function WeatherScreen() {
     location: string;
     weather: CurrentWeather;
   } | null>(null);
-  const [myForecast, setMyForecast] = useState<ForecastDay[]>([]);
   const [searchForecast, setSearchForecast] = useState<ForecastDay[]>([]);
   const [myLocationName, setMyLocationName] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<
-    { name: string; country?: string; latitude: number; longitude: number }[]
+    {
+      name: string;
+      admin1?: string;
+      country?: string;
+      latitude: number;
+      longitude: number;
+    }[]
   >([]);
 
   useEffect(() => {
@@ -49,11 +54,10 @@ export function WeatherScreen() {
         const weather = await fetchWeather(
           loc.coords.latitude,
           loc.coords.longitude,
-          7,
+          1,
         );
         if (weather) {
           setMyWeather(weather.current);
-          setMyForecast(weather.forecast);
         }
       } catch {
         /* ignore */
@@ -118,7 +122,15 @@ export function WeatherScreen() {
         );
         const gj = await geo.json();
         if (!cancelled)
-          setSuggestions(gj.results?.slice(0, 3) || []);
+          setSuggestions(
+            (gj.results?.slice(0, 3) || []).map((r: any) => ({
+              name: r.name,
+              admin1: r.admin1,
+              country: r.country,
+              latitude: r.latitude,
+              longitude: r.longitude,
+            }))
+          );
       } catch {
         if (!cancelled) setSuggestions([]);
       }
@@ -130,6 +142,7 @@ export function WeatherScreen() {
 
   async function handleSuggestionSelect(s: {
     name: string;
+    admin1?: string;
     country?: string;
     latitude: number;
     longitude: number;
@@ -139,7 +152,9 @@ export function WeatherScreen() {
       const weather = await fetchWeather(s.latitude, s.longitude, 7);
       if (weather) {
         setSearchWeather({
-          location: [s.name, s.country].filter(Boolean).join(", "),
+          location: [s.name, s.admin1, s.country]
+            .filter(Boolean)
+            .join(", "),
           weather: weather.current,
         });
         setSearchForecast(weather.forecast);
@@ -163,11 +178,13 @@ export function WeatherScreen() {
       );
       const gj = await geo.json();
       if (gj.results?.length) {
-        const { latitude, longitude, name, country } = gj.results[0];
+        const { latitude, longitude, name, country, admin1 } = gj.results[0];
         const weather = await fetchWeather(latitude, longitude, 7);
         if (weather) {
           setSearchWeather({
-            location: [name, country].filter(Boolean).join(", "),
+            location: [name, admin1, country]
+              .filter(Boolean)
+              .join(", "),
             weather: weather.current,
           });
           setSearchForecast(weather.forecast);
@@ -182,7 +199,11 @@ export function WeatherScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator
+    >
       {myWeather ? (
         <Card style={styles.currentCard}>
           <Card.Title
@@ -196,36 +217,12 @@ export function WeatherScreen() {
             {myWeather.precipitationProb != null && (
               <Text>{`Regenwahrscheinlichkeit: ${myWeather.precipitationProb}%`}</Text>
             )}
-            <Text>{`Höchst: ${myWeather.tempMax}°C  Tiefst: ${myWeather.tempMin}°C`}</Text>
           </Card.Content>
         </Card>
       ) : (
         <ActivityIndicator style={styles.loading} />
       )}
-      {myForecast.length > 0 && (
-        <FlatList
-          data={myForecast}
-          keyExtractor={d => d.date}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <Card style={styles.dayCard}>
-              <Card.Title
-                title={
-                  new Date(item.date).toLocaleDateString(undefined, {
-                    month: "numeric",
-                    day: "numeric",
-                  }) + ` ${rainEmoji(item.precipitationProb)}`
-                }
-              />
-              <Card.Content>
-                <Text>{`Max: ${item.tempMax}°C  Min: ${item.tempMin}°C`}</Text>
-              </Card.Content>
-            </Card>
-          )}
-          contentContainerStyle={styles.forecastList}
-        />
-      )}
+      {/** Seven-day forecast for current location removed as requested */}
       <Searchbar
         placeholder="Ort suchen"
         value={query}
@@ -239,7 +236,9 @@ export function WeatherScreen() {
           {suggestions.map(s => (
             <List.Item
               key={`${s.latitude},${s.longitude}`}
-              title={[s.name, s.country].filter(Boolean).join(", ")}
+              title={[s.name, s.admin1, s.country]
+                .filter(Boolean)
+                .join(", ")}
               onPress={() => handleSuggestionSelect(s)}
             />
           ))}
@@ -286,6 +285,6 @@ export function WeatherScreen() {
           contentContainerStyle={styles.forecastList}
         />
       )}
-    </View>
+    </ScrollView>
   );
 }
